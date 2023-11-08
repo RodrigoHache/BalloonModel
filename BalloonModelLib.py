@@ -15,10 +15,10 @@ def neural_response(stimulus: np.ndarray, dt:np.float64= 0.01, N_0:bool= False, 
     **Inputs:**
 
         - ``stimulus``: list, a list of zeros and ones called stimulus, where each digit corresponds to one second.
-        - ``dt``: float, equivalent to the integration step, which defaults to one hundredth of a second.
+        - ``dt``: np.float64, equivalent to the integration step, which defaults to one hundredth of a second.
         - ``N_0``: bool, default is False, when True, the function's output has a basal condition different from zero.
         - ``scale``: bool, determines if the output is scaled, so the output would have a maximum of 1, independent of N_0 and param.
-        - ``param``: list, containing the parameters ``[k=1, tau_I=2]`` from equation 14 according to buxton2004. 
+        - ``param``: dict, containing the parameters ``[k=1, tau_I=2]`` from equation 14 according to buxton2004. 
 
     These values can be found in ``buxton2004modeling``.
     
@@ -80,7 +80,7 @@ def NeurovascularCoupling(stimulus: np.ndarray, version:str= 'differential' ,par
         - ``stimulus``= np.ndarray A list of zeros and ones called 'stimulus', where each digit corresponds to one second.
         - ``version`` = str 'differential' for Maith 2022 or 'convolution' for Buxton 2004.
         - ``dt`` = np.float6 equivalent to the integration time step, which by default is one-hundredth of a second.
-        - ``params``: list, 3 parameters in the following order: [tau_h=4, delta t_f=1, f_1=1.009].
+        - ``params``: dict, 3 parameters whose name depend on whether we use "differential" version or "convolution".
     
     - if version == 'differential'
     
@@ -89,10 +89,10 @@ def NeurovascularCoupling(stimulus: np.ndarray, version:str= 'differential' ,par
     
     **Inputs:**
     
-        - ``stimulus``= np.ndarray A list of zeros and ones called "stimulus", where each digit corresponds to one second.
-        - ``params`` = kappa and gamma acoording to Maith 2022, tau_s and tau_f according to Friston 2000 
-        - ``dt`` = np.float64=0.01 equivalent to the integration time step, which by default is one-hundredth of a second.
-        - ``y0`` =(1,0) Initual contiditions for f and s
+        - ``stimulus``= np.ndarray, A list of zeros and ones called "stimulus", where each digit corresponds to one second.
+        - ``params`` = dict, kappa and gamma acoording to Maith 2022, or tau_s and tau_f according to Friston 2000 
+        - ``dt`` = np.float64(0.01) equivalent to the integration time step, which by default is one-hundredth of a second.
+        - ``y0`` =(1,0) Initual contiditions for (f,s)
         - ``AmpI``= np.float64, Scales Stimulus to be used for f_{in}(t) [app = 0.2] or m(t)[app = 0.05]
 
     **Outputs:**
@@ -109,7 +109,7 @@ def NeurovascularCoupling(stimulus: np.ndarray, version:str= 'differential' ,par
 
     **Input:**
     
-        - ``params``: list, 3 parameters in the following order: [tau_h=4, delta t_f=1, f_1=1.009].
+        - ``params``: dict, 3 parameters {'tau_h':4, 'delta_tf':1, 'f_1':1.009].
     
     The values for tau and delta were extracted from Buxton 2004, while the value for f_1=1.009 was obtained heuristically, such 
     that max(f_in(t)) approx 1.5 (note that if f_1=1.00 then f_in(t)=0).
@@ -208,8 +208,20 @@ def NeurovascularCoupling(stimulus: np.ndarray, version:str= 'differential' ,par
 
 
 def array_extend(arr: np.ndarray ,dt:np.float64):
+    '''
+    array_extend 
+
+    Takes the stimulus function (only ones and zeros) and extendits it increasing the sampling rate by 1/dt
     
-    new_arr=np.empty(0,np.float64)
+    **Inputs**
+        - arr: np.ndarray, estimulus function made of zeros and ones, each digit es equivalent to a second
+        - dt: np.float64,  the time differential by which each digit/second will be expanded e.g. if dt=0.5 then [0,0,1]->[0,0,0,0,1,1]
+    
+    **output**
+        - new_arr: np.ndarray, estimulus function made of zeros and ones, each digit es equivalent to a dt of a second
+    '''
+    
+    new_arr=np.empty(0,np.float64)# output preallocation 
     
     for a in arr:
         tmp=np.ones(int(np.ceil(1/dt)), dtype=np.float64)*a
@@ -286,22 +298,24 @@ def m_t_E(f_in: np.ndarray, E0:float=0.32):
 # @njit
 def vol_func(f_in: np.ndarray, params: np.ndarray, vol0:float=1, dt:float= 0.01, viscoelastic:bool=False):
     '''
-    vol_func
+    **vol_func**
     
-    vol_fun entrega la   solución de la ecuación diferencial para el volumen, según una combinación las ecuaciones 10 y 11 del articulo de Buxton 2004. 
-    
+    vol_fungives the solution for the differential equation for volume, according to a combination of equations 10 and 11 on Buxton's 2004 from 2004
+        
+    Certainly, here's the translation to British English while conserving the format:
+
     **Inputs:**
-    
-        - ``f_in`` :  array, corresponde a la ecuación 13 i.e. el flujo de ingreso.
-        - ``params`` : list, incluyen las constantes de las ecuaciones 10 y 11, estas son son [tau_MTT = 3,0, alpha = 0,4, tau_m ∈ [0, 30]].
-        - ``dt`` : float, dt refiere al paso de integración.
-        - ``viscoelastic`` :bool  determina si la salida contempla o no el efecto viscoelástico, i.e. tau = 0  ́o 0 < tau ≤ 30.
+
+        - ``f_in``:  np.ndarray, corresponds to equation 13, i.e. the income flow.
+        - ``params``: dict, includes the constants from equations 10 and 11, which are {tau_MTT = 3.0, alpha = 0.4, tau_m ∈ [0, 30]}.
+        - ``dt``: float, dt refers to the integration step.
+        - ``viscoelastic``: bool, determines whether the output accounts for the viscoelastic effect, i.e. tau = 0 or 0 < tau ≤ 30.
 
     **Outputs:**
-     
-        - ``v(t)`` : array, serie de tiempo del volumen
-        - ``time`` : array, serrie con el tiempo en el cual transcurre v(t).
-    
+
+        - ``v(t)``: np.ndarray, time series of the volume.
+        - ``time``: np.ndarray, time series in which v(t) transpires.
+         
     '''
 
     tau_MTT = 3.0 # venous time constant
@@ -345,19 +359,21 @@ def vol_func(f_in: np.ndarray, params: np.ndarray, vol0:float=1, dt:float= 0.01,
 # @njit
 def f_out(vol: np.ndarray, f_in: np.ndarray, viscoelastic:bool=False, params=None):
     '''
-    f_out
+    **f_out**
 
-    Fundamental para el modelo balloon, el flujo de salida se obtiene a partir de nuestra función 'f_out', resolviendo la tasa de cambio del volumen en la ecuación de flujo de salida, es decir, en la ecuación 11 del artículo de Buxton 2004.
+        Integral to the balloon model, the outflow is obtained using our 'f_out' function by solving the rate of change of volume in the outflow equation, i.e., equation 11 in the Buxton 2004 article.
 
     **Inputs:**
-        - ``vol`` : array, serie de tiempo del volumen.
-        - ``f_in`` :  array, corresponde a la ecuación 13 i.e. el flujo de ingreso.
-        - ``viscoelastic`` : bool, determina si la salida contempla o no el efecto viscoelástico, es decir, tau = 0 o 0 < tau ≤ 30.
-        - ``params`` : list, incluye las constantes de las ecuaciones 10 y 11, que son [tau_MTT = 3.0, alpha = 0.4, tau_m ∈ [0, 30]].
+
+        - ``vol``: np.ndarray, time series of volume.
+        - ``f_in``: np.ndarray, corresponds to equation 13, i.e. the inflow.
+        - ``viscoelastic``: bool, determines whether the outflow accounts for the viscoelastic effect, i.e., tau = 0 or 0 < tau ≤ 30.
+        - ``params``: dict, includes the constants from equations 10 and 11, which are {tau_MTT = 3.0, alpha = 0.4, tau_m ∈ [0, 30]}.
 
     **Outputs:**
-        - ``fout``: array, serie de tiempo del flujo de salida.
 
+        - ``fout``: np.ndarray, time series of the outflow.
+      
     '''
     
     tau_MTT = 3.0   # "venous time constant"
@@ -388,19 +404,19 @@ def f_out(vol: np.ndarray, f_in: np.ndarray, viscoelastic:bool=False, params=Non
 # @njit
 def time_segment(time: np.ndarray, dt:np.float64=0.01):
     '''
-    time_segment
-    
-    Esta función produce intervalos de tiempo de longitud dt que segmentan un rango de tiempo similar a 'time'.
-    
-    **Inputs:**
-    
-        - ``time``: array o lista, cuya longitud se usa para ser duplicada.
-        - ``dt``: float, paso de integración usado como longitud de los intervalos.
-    
-    **Output:**
-    
-        - ``new_time``: array, tal que 'array.shape = (-1,2)' con -1 intervalos de tiempo de longitud dt.
+    **time_segment**
 
+        This function generates time intervals of length 'dt' that segment a time range similar to 'time'.
+
+    **Inputs:**
+
+        - ``time``: np.ndarray or list, whose length is used for duplication.
+        - ``dt``: float, integration step used as the length of the intervals.
+
+    **Output:**
+
+        - ``new_time``: np.ndarray, such that 'array.shape = (-1,2)' with -1 time intervals of length 'dt'.
+        
     '''
 
     newt=np.arange(start=0,stop=len(time)*dt, step=dt, dtype=np.float64)
@@ -422,25 +438,25 @@ def time_segment(time: np.ndarray, dt:np.float64=0.01):
 # @njit
 def q_func(vol: np.ndarray, mt: np.ndarray, f_out: np.ndarray, params, dt:float= 0.01):
     '''
-    q_fun
-    ========
+    Certainly, here's the translation to British English while preserving the format:
 
-    q_fun entrega la solución de la ecuación diferencial para el contenido de deoxyhemoglobina, según una combinación las ecuaciones 10 y 11 del articulo de Buxton 2004. 
+    **q_fun**
+    
+        q_fun provides the solution to the differential equation for deoxyhemoglobin content, based on a combination of equations 10 and 11 from the Buxton 2004 article.
     
     **Inputs:**
     
-        - ``vol`` : array, serie de tiempo del volumen de acuerdo a la ecuación 10 de buxton 2004
-        - ``mt`` : array, serie de tiempo de la tasa metabólica cerebral de oxígeno (CMRO_2) normalizado a su valor en reposo.
-        - ``f_out`` : array, serie de tiempo con el flujo de salida, de acuerdo con la función 11 de buxton 2004.
-        - ``params`` : list, incluyen las constantes de las ecuaciones 10 y 11, estas son son [tau_MTT = 3,0, alpha = 0,4, tau_m ∈ [0, 30]].
-        - ``dt`` : float, dt refiere al paso de integración.
-        - ``viscoelastic`` : bool  determina si la salida contempla o no el efecto viscoelástico, i.e. tau = 0  ́o 0 < tau ≤ 30.
-
-    **Outputs:** 
+        - ``vol``: np.ndarray, time series of volume according to equation 10 of Buxton 2004.
+        - ``mt``: np.ndarray, time series of normalized cerebral oxygen metabolic rate (CMRO2) to its resting value.
+        - ``f_out``: np.ndarray, time series of the outflow according to equation 11 of Buxton 2004.
+        - ``params``: list, includes the constants from equations 10 and 11, which are [tau_MTT = 3.0, alpha = 0.4, tau_m ∈ [0, 30]].
+        - ``dt``: float, dt refers to the integration step.
+        - ``viscoelastic``: bool, determines whether the output accounts for the viscoelastic effect, i.e., tau = 0 or 0 < tau ≤ 30.
     
-        - ``q`` : array, serie de tiempo con el contenido de deoxyhemoblobina
-        - ``time`` : array, serrie con el tiempo en el cual transcurre q(t).
-
+    **Outputs:**
+    
+        - ``q``: np.ndarray, time series of deoxyhemoglobin content.
+        - ``time``: np.ndarray, time series in which q(t) transpires.
     '''
     
     tau_MTT =     3.0 # "venous time constant")
@@ -457,7 +473,7 @@ def q_func(vol: np.ndarray, mt: np.ndarray, f_out: np.ndarray, params, dt:float=
     q=np.ones(1, dtype=np.float64) #preallocate the output
     time=time_segment(vol, dt=dt)
 
-    for ts in zip(time,vol, mt, f_out):
+    for ts in sip(time,vol, mt, f_out):
         y=odeint(dqdt, y0=q[-1], t=ts[0], args=(ts[1],ts[2],ts[3],), tfirst= True)
         q=np.append(q, [y.T[0][1]])
 
@@ -468,23 +484,25 @@ def q_func(vol: np.ndarray, mt: np.ndarray, f_out: np.ndarray, params, dt:float=
 
 def Balloon_odeint(f_in: np.ndarray, mt: np.ndarray, params=None, dt:float=0.01, y0=(1,1), viscoelastic=False):
     '''
-    Balloon_odeint
-    
-    Balloon_odeint resuelve el sistema de ecuaciones para el modelo balloon (ecuaciones 10 y 11 del articulo de Buxton 2004.)
-    
+    **Balloon_odeint**
+
+        Balloon_odeint solves the system of equations for the balloon model (equations 10 and 11 from the Buxton 2004 article).
+
     **Inputs:**
-        - ``f_in`` :  array, corresponde a la ecuación 13 i.e. el flujo de ingreso.
-        - ``mt`` : array, serie de tiempo de la tasa metabólica cerebral de oxígeno (CMRO_2) normalizado a su valor en reposo.
-        - ``params`` : list, incluyen las constantes de las ecuaciones 10 y 11, estas son son [tau_MTT = 3,0, alpha = 0,4, tau_m ∈ [0, 30]].
-        - ``dt`` : float, dt refiere al paso de integración.
-        - ``y0`` : tuple, coordenanas iniciales, tanto de vt, como de qt.
-        - ``viscoelastic`` : bool  determina si la salida contempla o no el efecto viscoelástico, i.e. tau = 0  ́o 0 < tau ≤ 30.
-        
+
+        - ``f_in``: np.ndarray, corresponds to equation 13, i.e., the inflow.
+        - ``mt``: np.ndarray, time series of cerebral oxygen metabolic rate (CMRO2) normalized to its resting value.
+        - ``params``: dict, includes the constants from equations 10 and 11, which are [tau_MTT = 3.0, alpha = 0.4, tau_m ∈ [0, 30]].
+        - ``dt``: float, dt refers to the integration step.
+        - ``y0``: tuple, initial coordinates for both vt and qt.
+        - ``viscoelastic``: bool, determines whether the output accounts for the viscoelastic effect, i.e., tau = 0 or 0 < tau ≤ 30.
+
     **Outputs:**
-        - ``v```:array, serie de tiempo con el volumen sanguineo 
-        - ``q``: array, serie de tiempo con el contenido de deoxyhemoblobina
-    
+
+        - ``v``: np.ndarray, time series of blood volume.
+        - ``q``: np.ndarray, time series of deoxyhemoglobin content.    
     '''  
+
     tau_MTT =    3.0 # "venous time constant"
     alpha =      0.4 # "Grubb's exponent (stiffness)"
     tau_m =      10  # "Viscoelastic time constant (deflation)"
@@ -526,22 +544,23 @@ def Balloon_odeint(f_in: np.ndarray, mt: np.ndarray, params=None, dt:float=0.01,
     
 def Balloon_ivp(f: np.ndarray, m: np.ndarray, params=None, y0=(1,1), viscoelastic:bool=False, method:str="DOP853"):
     '''
-    Balloon_ivp
-    
-    Balloon_ivp resuelve el sistema de ecuaciones para el modelo balloon (ecuaciones 10 y 11 del articulo de Buxton 2004.)
-    
+    **Balloon_ivp**
+
+        Balloon_ivp solves the system of equations for the balloon model (equations 10 and 11 from the Buxton 2004 article).
+
     **Inputs:**
-        - ``f_in`` :  array, corresponde a la ecuación 13 i.e. el flujo de ingreso.
-        - ``mt`` : array, serie de tiempo de la tasa metabólica cerebral de oxígeno (CMRO_2) normalizado a su valor en reposo.
-        - ``params`` : list, incluyen las constantes de las ecuaciones 10 y 11, estas son son [tau_MTT = 3,0, alpha = 0,4, tau_m ∈ [0, 30]].
-        - ``dt`` : float, dt refiere al paso de integración.
-        - ``y0`` : tuple, coordenanas iniciales, tanto de vt, como de qt.
-        - ``viscoelastic`` : bool  determina si la salida contempla o no el efecto viscoelástico, i.e. tau = 0  ́o 0 < tau ≤ 30.
-        
+
+        - ``f_in``: np.ndarray, corresponds to equation 13, i.e., the inflow.
+        - ``mt``: np.ndarray, time series of cerebral oxygen metabolic rate (CMRO2) normalized to its resting value.
+        - ``params``: dict, includes the constants from equations 10 and 11, which are [tau_MTT = 3.0, alpha = 0.4, tau_m ∈ [0, 30]].
+        - ``dt``: float, dt refers to the integration step.
+        - ``y0``: tuple, initial coordinates for both vt and qt.
+        - ``viscoelastic``: bool, determines whether the output accounts for the viscoelastic effect, i.e., tau = 0 or 0 < tau ≤ 30.
+
     **Outputs:**
-        - ``v```:array, serie de tiempo con el volumen sanguineo 
-        - ``q``: array, serie de tiempo con el contenido de deoxyhemoblobina
-    
+
+        - ``v``: np.ndarray, time series of blood volume.
+        - ``q``: np.ndarray, time series of deoxyhemoglobin content.
     '''  
       
     if params!=None:
@@ -591,32 +610,33 @@ def Balloon_ivp(f: np.ndarray, m: np.ndarray, params=None, y0=(1,1), viscoelasti
 # @njit
 def cartesian(arrays, out=None):
     '''
-    Cartesian
-        
-    Generea el producto cartesiano entre los arrays ingresados.
-    
+    **Cartesian**
+
+        Generates the Cartesian product between the input arrays.
+
     **Inputs:**
-        - ``arrays`` : tupla de array-like, 1-D arrays entre los cuales hacer el producto cartesiano
-    
+
+        - ``arrays``: tuple of array-like, 1-D arrays among which to compute the Cartesian product.
 
     **Output:**
-        - ``out`` : ndarray, 2-D array con formato/forma (M, len(arrays)) contenedor del producto cartesiano formado a partir de los inputs.
 
-    Examples
-    --------
+        - ``out``: np.ndarray, a 2-D array with a format/shape of (M, len(arrays)) containing the Cartesian product formed from the inputs.
+
+    **Example:**
+
     >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
-    array([[1, 4, 6],
-        [1, 4, 7],
-        [1, 5, 6],
-        [1, 5, 7],
-        [2, 4, 6],
-        [2, 4, 7],
-        [2, 5, 6],
-        [2, 5, 7],
-        [3, 4, 6],
-        [3, 4, 7],
-        [3, 5, 6],
-        [3, 5, 7]])
+        array([[1, 4, 6],
+            [1, 4, 7],
+            [1, 5, 6],
+            [1, 5, 7],
+            [2, 4, 6],
+            [2, 4, 7],
+            [2, 5, 6],
+            [2, 5, 7],
+            [3, 4, 6],
+            [3, 4, 7],
+            [3, 5, 6],
+            [3, 5, 7]])
 
     '''
     mesh = np.meshgrid(*arrays)
@@ -626,23 +646,21 @@ def cartesian(arrays, out=None):
 
 def BOLD_func(vt: np.ndarray,qt: np.ndarray, params=None, BM:str='classic'):
     '''
-    BOLD_func
-    
-    Calcula la senal dependiente de oxigeno en la sangre (BOLD)
-    usando valores de volumen (vt) y deoxihemoglobina (qt) de acuerdo con 
-    las estimaciones de Obata(2004) y Buxton(2000) expuestas en Stephen(2007)
+    **BOLD_func**
+
+    Calculates the blood oxygen level-dependent (BOLD) signal using volume (vt) and deoxyhemoglobin (qt) values according to the estimates of Obata (2004) and Buxton (2000) as presented in Stephen (2007).
 
     **Inputs:**
-    
-        - ``vt`` : np.ndarray, a 1D array of volume (in arbitrary units) over time
-        - ``qt`` : np.ndarray, a 1D array of cerebral deoxyhemoglibine (in arbitrary units) over time
-        - ``params`` : dict, o None, a list model parameters (optional, defaults to None) E_0, V_0, v_0, TE, epsilon and r_0
-        - ``BM`` : str, kind of Balloon Model (optional, defaults is "classic", while the alternative is "revised") accordin Stephan 2007
-    
+
+    - ``vt``: np.ndarray, a 1D array of volume (in arbitrary units) over time.
+    - ``qt``: np.ndarray, a 1D array of cerebral deoxyhemoglobin (in arbitrary units) over time.
+    - ``params``: dict, or None, a list of model parameters (optional, defaults to None) E_0, V_0, v_0, TE, epsilon, and r_0.
+    - ``BM``: str, kind of Balloon Model (optional, default is "classic," while the alternative is "revised") according to Stephen 2007.
+
     **Outputs:**
+
+    - ``bold``: np.ndarray, a 1D array of simulated BOLD signals over time.
     
-        - ``bold`` : np.ndarray, a 1D array of simulated BOLD signals over time
-            
     '''
     
     E_0 = 0.32  # "Baseline value of oxygen extraction fraction")
@@ -650,7 +668,7 @@ def BOLD_func(vt: np.ndarray,qt: np.ndarray, params=None, BM:str='classic'):
     TE  = 0.04  # "Echo time in miliseconds")
     eps = 1.43  # "Ratio of intra- to extravascular BOLD signal at rest")
     r_0 = 25    # "The slope of the relation between the intravascular relaxation rate and oxygen saturation. For a field strength of 1.5[T], r0=25 s^{-1}")
-    O_o = 40.3  # "The frequency offset at the outer surface of the magnetized vessel for fully deoxygenated blood. For a field strength of 1.5[T], v0=40.3 s^{-1}")
+    O_o = 40.3  # "The frequency offset at the outer surface of the magnetised vessel for fully deoxygenated blood. For a field strength of 1.5[T], v0=40.3 s^{-1}")
 
     
     if params!=None:
